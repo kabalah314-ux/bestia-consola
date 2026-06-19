@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<title>CONSOLA · LA BESTIA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{ --grn:#33ff66; --grn-dim:#1a8a38; --amber:#ffb000; --red:#ff3b30; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{
+    background:#050805; color:var(--grn);
+    font-family:'VT323', 'Courier New', monospace;
+    overflow:hidden; -webkit-user-select:none; user-select:none;
+    display:flex; align-items:center; justify-content:center;
+    text-shadow:0 0 6px rgba(51,255,102,.55);
+  }
+  /* CRT overlays */
+  body::before{ /* scanlines */
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:9;
+    background:repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,0,0,.28) 3px, rgba(0,0,0,.28) 3px);
+  }
+  body::after{ /* vignette + flicker */
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:8;
+    background:radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,.6) 100%);
+    animation:flick 6s infinite steps(60);
+  }
+  @keyframes flick{ 0%,97%{opacity:1} 98%{opacity:.85} 99%{opacity:1} }
+  .crt{ width:100%; max-width:560px; padding:26px 22px 38px; position:relative; z-index:1; }
+  pre.beast{ font-size:13px; line-height:1.05; color:var(--grn); white-space:pre; text-align:center;
+    margin:0 auto 14px; filter:drop-shadow(0 0 8px rgba(51,255,102,.5)); transition:color .4s; }
+  .title{ font-size:30px; letter-spacing:3px; text-align:center; margin-bottom:2px; }
+  .sub{ font-size:18px; color:var(--grn-dim); text-align:center; letter-spacing:1px; margin-bottom:18px; }
+  .term{ font-size:20px; line-height:1.5; min-height:120px; }
+  .line{ white-space:pre-wrap; }
+  .dim{ color:var(--grn-dim); }
+  .status-tag{ font-size:22px; letter-spacing:2px; }
+  .awake{ color:var(--grn); } .asleep{ color:var(--amber); } .unknown{ color:var(--grn-dim); }
+  .prompt-big{ font-size:28px; letter-spacing:2px; margin:20px 0 14px; text-align:center; min-height:34px; }
+  .blink::after{ content:"_"; animation:bl 1s steps(2) infinite; }
+  @keyframes bl{ 50%{opacity:0} }
+  .btn-wrap{ display:flex; justify-content:center; margin-top:6px; }
+  button.beastbtn{
+    font-family:inherit; font-size:40px; letter-spacing:4px;
+    padding:16px 46px; background:#0a120a; cursor:pointer;
+    border:3px solid var(--grn); color:var(--grn);
+    text-shadow:0 0 10px var(--grn); box-shadow:0 0 18px rgba(51,255,102,.35), inset 0 0 18px rgba(51,255,102,.12);
+    border-radius:6px; transition:transform .08s, box-shadow .2s, background .2s;
+    -webkit-tap-highlight-color:transparent;
+  }
+  button.beastbtn:active{ transform:scale(.94); }
+  button.off{ border-color:var(--red); color:var(--red); text-shadow:0 0 10px var(--red);
+    box-shadow:0 0 18px rgba(255,59,48,.4), inset 0 0 18px rgba(255,59,48,.12); }
+  button.busy{ opacity:.5; pointer-events:none; }
+  .foot{ text-align:center; font-size:15px; color:var(--grn-dim); margin-top:22px; letter-spacing:1px; }
+  .err{ color:var(--red); }
+</style>
+</head>
+<body>
+  <div class="crt">
+    <pre class="beast" id="beast">      ▄▄▄▄▄▄▄
+   ▄█▀░░░░░░░▀█▄
+  █▌░▄▄░░░▄▄░░▐█
+  █▌░▀▀░░░▀▀░░▐█
+   █▄░░▄███▄░░▄█
+    ▀█▄░▀▀▀░▄█▀
+   ▝▀█▓█▀▀▀█▓█▀▘
+      ▀▀   ▀▀</pre>
+    <div class="title">L A · B E S T I A</div>
+    <div class="sub">// consola remota v1.0</div>
+
+    <div class="term" id="term"></div>
+
+    <div class="prompt-big" id="prompt"></div>
+    <div class="btn-wrap" id="btnwrap"></div>
+
+    <div class="foot" id="foot">··· canal cifrado · ntfy ···</div>
+  </div>
+
+<script>
+  const WAKE  = "wakemac-x7h3k9q2z4p";
+  const SLEEP = "sleepmac-x7h3k9q2z4p";
+  const HB    = "bestiavive-x7h3k9q2z4p";
+  const NTFY  = "https://ntfy.sh/";
+
+  const term=document.getElementById('term');
+  const prompt=document.getElementById('prompt');
+  const btnwrap=document.getElementById('btnwrap');
+  const beast=document.getElementById('beast');
+  const foot=document.getElementById('foot');
+
+  let state="unknown";   // awake | asleep | unknown
+  let busy=false;        // mientras esperamos una transición
+
+  function line(txt, cls){ const d=document.createElement('div'); d.className='line '+(cls||''); d.textContent=txt; term.appendChild(d); }
+  function clearTerm(){ term.innerHTML=''; }
+
+  async function bootSeq(){
+    const lines=[
+      "> inicializando consola...",
+      "> enlazando canal ntfy... OK",
+      "> rastreando a la bestia..."
+    ];
+    for(const l of lines){ line(l,'dim'); await sleep(420); }
+  }
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+  async function checkState(){
+    try{
+      const r=await fetch(NTFY+HB+"/json?poll=1&since=80s",{cache:"no-store"});
+      const t=(await r.text()).trim();
+      return t.includes('"message":"alive"') ? "awake" : "asleep";
+    }catch(e){ return "error"; }
+  }
+
+  function render(){
+    btnwrap.innerHTML=''; prompt.className='prompt-big';
+    if(busy){
+      prompt.classList.add('blink');
+      prompt.textContent = state==="awake" ? "DURMIENDO A LA BESTIA..." : "DESPERTANDO A LA BESTIA...";
+      beast.style.color = "var(--amber)";
+      return;
+    }
+    if(state==="awake"){
+      beast.style.color="var(--grn)";
+      prompt.textContent="¿QUIERES APAGAR A LA BESTIA?";
+      const b=document.createElement('button');
+      b.className='beastbtn off'; b.textContent='[ OFF ]';
+      b.onclick=()=>sendCmd('off');
+      btnwrap.appendChild(b);
+    }else if(state==="asleep"){
+      beast.style.color="var(--grn-dim)";
+      prompt.textContent="DESPERTAR A LA BESTIA";
+      const b=document.createElement('button');
+      b.className='beastbtn'; b.textContent='[ ON ]';
+      b.onclick=()=>sendCmd('on');
+      btnwrap.appendChild(b);
+    }else{
+      prompt.classList.add('blink');
+      prompt.textContent="LOCALIZANDO...";
+    }
+  }
+
+  async function sendCmd(which){
+    busy=true; render();
+    const topic = which==='on' ? WAKE : SLEEP;
+    const body  = which==='on' ? 'wake' : 'sleep';
+    line(which==='on' ? "> enviando senal de DESPERTAR..." : "> enviando senal de DORMIR...", 'dim');
+    try{
+      await fetch(NTFY+topic,{method:'POST',body:body});
+      line("> senal transmitida. esperando a la bestia...", 'dim');
+    }catch(e){ line("> ERROR de transmision: "+e.message,'err'); busy=false; render(); return; }
+    // Espera la transicion (hasta ~40s) confirmando por el latido
+    const target = which==='on' ? "awake" : "asleep";
+    for(let i=0;i<22;i++){
+      await sleep(2000);
+      const s=await checkState();
+      if(s===target){ busy=false; state=s; line(which==='on' ? "> LA BESTIA HA DESPERTADO." : "> LA BESTIA DUERME.", ''); render(); return; }
+    }
+    busy=false; state=await checkState();
+    line("> (sin confirmacion; comprueba manualmente)", 'err');
+    render();
+  }
+
+  async function poll(){
+    if(busy) return;
+    const s=await checkState();
+    if(s==='error'){ foot.innerHTML='<span class="err">sin conexion a ntfy</span>'; return; }
+    foot.textContent='··· canal cifrado · ntfy ···';
+    if(s!==state){ state=s; }
+    render();
+  }
+
+  (async function(){
+    await bootSeq();
+    const s=await checkState();
+    state = (s==='error') ? 'unknown' : s;
+    line("> estado: "+(state==='awake'?'DESPIERTA':state==='asleep'?'DORMIDA':'¿?'),
+         state==='awake'?'':'dim');
+    render();
+    setInterval(poll, 5000);
+  })();
+</script>
+</body>
+</html>
