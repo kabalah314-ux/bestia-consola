@@ -84,7 +84,7 @@
 
 <script>
   const WAKE  = "wakemac-x7h3k9q2z4p";
-  const SLEEP = "sleepmac-x7h3k9q2z4p";
+  const SLEEP = "sleepmac-q4w8r2t6y9k3";
   const HB    = "bestiavive-x7h3k9q2z4p";
   const NTFY  = "https://ntfy.sh/";
 
@@ -112,9 +112,14 @@
 
   async function checkState(){
     try{
-      const r=await fetch(NTFY+HB+"/json?poll=1&since=80s",{cache:"no-store"});
-      const t=(await r.text()).trim();
-      return t.includes('"message":"alive"') ? "awake" : "asleep";
+      const r=await fetch(NTFY+HB+"/json?poll=1",{cache:"no-store"});
+      const lines=(await r.text()).trim().split("\n").filter(Boolean);
+      for(let i=lines.length-1;i>=0;i--){
+        try{ const d=JSON.parse(lines[i]);
+          if(d.event==="message"){ return d.message==="asleep" ? "asleep" : "awake"; }
+        }catch(e){}
+      }
+      return "unknown";
     }catch(e){ return "error"; }
   }
 
@@ -141,8 +146,15 @@
       b.onclick=()=>sendCmd('on');
       btnwrap.appendChild(b);
     }else{
-      prompt.classList.add('blink');
-      prompt.textContent="LOCALIZANDO...";
+      beast.style.color="var(--grn-dim)";
+      prompt.textContent="ESTADO DESCONOCIDO";
+      const b1=document.createElement('button');
+      b1.className='beastbtn'; b1.style.fontSize='30px'; b1.style.padding='12px 26px'; b1.textContent='[ ON ]';
+      b1.onclick=()=>sendCmd('on');
+      const b2=document.createElement('button');
+      b2.className='beastbtn off'; b2.style.fontSize='30px'; b2.style.padding='12px 26px'; b2.style.marginLeft='12px'; b2.textContent='[ OFF ]';
+      b2.onclick=()=>sendCmd('off');
+      btnwrap.appendChild(b1); btnwrap.appendChild(b2);
     }
   }
 
@@ -183,7 +195,7 @@
     line("> estado: "+(state==='awake'?'DESPIERTA':state==='asleep'?'DORMIDA':'¿?'),
          state==='awake'?'':'dim');
     render();
-    setInterval(poll, 5000);
+    setInterval(poll, 8000);
   })();
 </script>
 </body>
