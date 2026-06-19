@@ -56,18 +56,23 @@
   .zzz span:nth-child(2){ font-size:22px; animation:floatz 3.2s ease-in infinite 1.05s; }
   .zzz span:nth-child(3){ font-size:27px; animation:floatz 3.2s ease-in infinite 2.1s; }
   @keyframes floatz{ 0%{opacity:0; transform:translate(0,8px) scale(.7)} 22%{opacity:1} 100%{opacity:0; transform:translate(16px,-36px) scale(1.15)} }
+  /* radar de escaneo (mientras comprueba) */
+  .beastwrap.scan::after{
+    content:""; position:absolute; inset:-14px; border-radius:50%;
+    border:2px solid rgba(255,176,0,.5); animation:radar 1.1s ease-out infinite;
+  }
+  @keyframes radar{ 0%{transform:scale(.5); opacity:.9} 100%{transform:scale(1.25); opacity:0} }
 
   .title{ font-size:30px; letter-spacing:3px; text-align:center; margin-bottom:2px; }
   .sub{ font-size:18px; color:var(--grn-dim); text-align:center; letter-spacing:1px; margin-bottom:18px; }
   .term{ font-size:20px; line-height:1.5; min-height:120px; }
   .line{ white-space:pre-wrap; }
   .dim{ color:var(--grn-dim); }
-  .status-tag{ font-size:22px; letter-spacing:2px; }
-  .awake{ color:var(--grn); } .asleep{ color:var(--amber); } .unknown{ color:var(--grn-dim); }
   .prompt-big{ font-size:28px; letter-spacing:2px; margin:20px 0 14px; text-align:center; min-height:34px; }
   .blink::after{ content:"_"; animation:bl 1s steps(2) infinite; }
   @keyframes bl{ 50%{opacity:0} }
-  .btn-wrap{ display:flex; justify-content:center; margin-top:6px; }
+  .btn-wrap{ display:flex; flex-direction:column; align-items:center; gap:12px; margin-top:6px; }
+  .btn-row{ display:flex; justify-content:center; gap:12px; }
   button.beastbtn{
     font-family:inherit; font-size:40px; letter-spacing:4px;
     padding:16px 46px; background:#0a120a; cursor:pointer;
@@ -79,7 +84,13 @@
   button.beastbtn:active{ transform:scale(.94); }
   button.off{ border-color:var(--red); color:var(--red); text-shadow:0 0 10px var(--red);
     box-shadow:0 0 18px rgba(255,59,48,.4), inset 0 0 18px rgba(255,59,48,.12); }
-  button.busy{ opacity:.5; pointer-events:none; }
+  /* botón COMPROBAR ESTADO (ámbar, con pulso para invitar al toque) */
+  button.check{ border-color:var(--amber); color:var(--amber); text-shadow:0 0 10px var(--amber);
+    font-size:25px; letter-spacing:2px; padding:16px 26px;
+    box-shadow:0 0 16px rgba(255,176,0,.35), inset 0 0 16px rgba(255,176,0,.1);
+    animation:cpulse 2s ease-in-out infinite; }
+  @keyframes cpulse{ 0%,100%{ box-shadow:0 0 14px rgba(255,176,0,.32), inset 0 0 14px rgba(255,176,0,.1);} 50%{ box-shadow:0 0 28px rgba(255,176,0,.6), inset 0 0 20px rgba(255,176,0,.2);} }
+  button.small{ font-size:26px; padding:11px 22px; letter-spacing:2px; }
   /* Panel de estado + resultado de la última operación */
   .panel{ margin-top:20px; border-top:1px solid var(--grn-dim); padding-top:12px; font-size:18px; line-height:1.6; }
   .panel .row{ display:flex; justify-content:space-between; gap:10px; white-space:nowrap; }
@@ -89,28 +100,29 @@
   .v.asleep{ color:var(--amber); } .v.awake{ color:var(--grn); } .v.unknown{ color:var(--grn-dim); }
   .foot{ text-align:center; font-size:15px; color:var(--grn-dim); margin-top:18px; letter-spacing:1px; }
   .err{ color:var(--red); }
+  .hidden{ display:none !important; }
 </style>
 </head>
 <body>
   <div class="crt">
 
     <div class="beast-center">
-      <div class="beastwrap asleep" id="beastwrap">
+      <div class="beastwrap unknown" id="beastwrap">
         <div class="zzz" id="zzz"><span>z</span><span>Z</span><span>z</span></div>
         <pre class="beast" id="beast"></pre>
       </div>
     </div>
 
     <div class="title">L A · B E S T I A</div>
-    <div class="sub">// consola remota v1.2</div>
+    <div class="sub">// consola remota v1.3</div>
 
     <div class="term" id="term"></div>
 
     <div class="prompt-big" id="prompt"></div>
     <div class="btn-wrap" id="btnwrap"></div>
 
-    <!-- Panel: estado actual + resultado de la última operación -->
-    <div class="panel" id="panel">
+    <!-- Panel: estado actual + resultado de la última operación (oculto hasta comprobar) -->
+    <div class="panel hidden" id="panel">
       <div class="row"><span class="k">ESTADO</span><span class="v unknown" id="st-state">¿?</span></div>
       <div class="row"><span class="k">ÚLTIMA OP</span><span class="v" id="st-op">—</span></div>
     </div>
@@ -123,9 +135,9 @@
   const SLEEP = "sleepmac-q4w8r2t6y9k3";
   const HB    = "bestiavive-x7h3k9q2z4p";
   const NTFY  = "https://ntfy.sh/";
-  const POLL_MS = 20000;   // sondeo cada 20s (antes 8s) para no agotar la cuota de ntfy
+  const POLL_MS = 20000;   // sondeo cada 20s para no agotar la cuota de ntfy
 
-  // ── ARTE: cueva (dormido), cueva con ojos (despertando), dragón (despierto) ──
+  // ── ARTE: cueva (dormido), cueva con ojos (despertando/escaneando), dragón (despierto) ──
   const ART = {
     asleep:
 `        ▄▄▄▄▄▄▄▄▄▄▄
@@ -164,14 +176,17 @@
   const beast=document.getElementById('beast');
   const beastwrap=document.getElementById('beastwrap');
   const foot=document.getElementById('foot');
+  const panel=document.getElementById('panel');
   const stState=document.getElementById('st-state');
   const stOp=document.getElementById('st-op');
 
-  let state="unknown";   // awake | asleep | unknown
+  let state="idle";      // idle | awake | asleep | unknown
   let stateSince=0;      // epoch (s) del último cambio de estado conocido
-  let busy=false;        // mientras esperamos una transición
+  let busy=false;        // mientras esperamos una transición (on/off)
+  let checking=false;    // mientras comprueba el estado
   let pending=null;      // 'on' | 'off' durante la accion
-  let lastOp=null;       // {result:'ok'|'warn'|'bad', text, ts}
+  let lastOp=null;       // {result, text, ts}
+  let polling=false;     // si ya arrancó el sondeo periódico
 
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   const hhmm=ts=>{ if(!ts) return ""; const d=new Date(ts*1000);
@@ -180,19 +195,21 @@
   function line(txt, cls){ const d=document.createElement('div'); d.className='line '+(cls||''); d.textContent=txt; term.appendChild(d); }
   function clearTerm(){ term.innerHTML=''; }
 
-  // Cambia el arte + la clase de animación del contenedor.
   function setBeast(key){
     beast.textContent = ART[key] || ART.unknown;
-    beastwrap.className = 'beastwrap ' + key;
+    beastwrap.className = 'beastwrap ' + key + (checking ? ' scan' : '');
   }
+
+  function mkBtn(cls, label, on){ const b=document.createElement('button'); b.className='beastbtn '+cls; b.textContent=label; b.onclick=on; return b; }
+  function mkCheckBtn(){ return mkBtn('check', '🔍 COMPROBAR ESTADO', doCheck); }
 
   async function bootSeq(){
     const lines=[
       "> inicializando consola...",
       "> enlazando canal ntfy... OK",
-      "> rastreando a la bestia..."
+      "> listo."
     ];
-    for(const l of lines){ line(l,'dim'); await sleep(420); }
+    for(const l of lines){ line(l,'dim'); await sleep(380); }
   }
 
   // Devuelve {state, time, http}. http=429 => canal saturado; http=0 => sin red.
@@ -215,7 +232,6 @@
     }catch(e){ return {state:"error", time:0, http:0}; }
   }
 
-  // Panel inferior: ESTADO (desde HH:MM) + resultado de la última operación.
   function renderPanel(){
     const label = state==='awake' ? 'DESPIERTA' : state==='asleep' ? 'DORMIDA' : '¿?';
     stState.className = 'v ' + (state==='awake'?'awake':state==='asleep'?'asleep':'unknown');
@@ -223,49 +239,79 @@
     if(lastOp){
       stOp.className = 'v ' + (lastOp.result==='ok'?'ok':lastOp.result==='warn'?'warn':'bad');
       stOp.textContent = lastOp.text + (lastOp.ts ? '  · '+hhmm(lastOp.ts) : '');
-    }else{
-      stOp.className='v'; stOp.textContent='—';
-    }
+    }else{ stOp.className='v'; stOp.textContent='—'; }
   }
 
   function render(){
     btnwrap.innerHTML=''; prompt.className='prompt-big';
+
+    // Mientras comprueba el estado
+    if(checking){
+      prompt.classList.add('blink');
+      prompt.textContent="RASTREANDO A LA BESTIA...";
+      setBeast('waking');
+      panel.classList.add('hidden');
+      return;
+    }
+
+    // Transición on/off en curso
     if(busy){
       prompt.classList.add('blink');
       prompt.textContent = pending==='off' ? "DURMIENDO A LA BESTIA..." : "DESPERTANDO A LA BESTIA...";
       setBeast(pending==='off' ? 'sleeping' : 'waking');
-      renderPanel();
+      panel.classList.remove('hidden'); renderPanel();
       return;
     }
+
+    // Pantalla inicial: SOLO el botón de comprobar (la info sale después)
+    if(state==="idle"){
+      setBeast('unknown');
+      prompt.textContent="¿CÓMO ESTÁ LA BESTIA?";
+      btnwrap.appendChild(mkCheckBtn());
+      panel.classList.add('hidden');
+      return;
+    }
+
+    panel.classList.remove('hidden');
+
     if(state==="awake"){
       setBeast('awake');
       prompt.textContent="¿QUIERES DORMIR A LA BESTIA?";
-      const b=document.createElement('button');
-      b.className='beastbtn off'; b.textContent='[ OFF ]';
-      b.onclick=()=>sendCmd('off');
-      btnwrap.appendChild(b);
+      btnwrap.appendChild(mkBtn('off','[ OFF ]', ()=>sendCmd('off')));
     }else if(state==="asleep"){
       setBeast('asleep');
       prompt.textContent="DESPERTAR A LA BESTIA";
-      const b=document.createElement('button');
-      b.className='beastbtn'; b.textContent='[ ON ]';
-      b.onclick=()=>sendCmd('on');
-      btnwrap.appendChild(b);
-    }else{
+      btnwrap.appendChild(mkBtn('','[ ON ]', ()=>sendCmd('on')));
+    }else{ // unknown -> permite RE-COMPROBAR (y deja forzar on/off por si acaso)
       setBeast('unknown');
-      prompt.textContent="ESTADO DESCONOCIDO";
-      const b1=document.createElement('button');
-      b1.className='beastbtn'; b1.style.fontSize='30px'; b1.style.padding='12px 26px'; b1.textContent='[ ON ]';
-      b1.onclick=()=>sendCmd('on');
-      const b2=document.createElement('button');
-      b2.className='beastbtn off'; b2.style.fontSize='30px'; b2.style.padding='12px 26px'; b2.style.marginLeft='12px'; b2.textContent='[ OFF ]';
-      b2.onclick=()=>sendCmd('off');
-      btnwrap.appendChild(b1); btnwrap.appendChild(b2);
+      prompt.textContent="ESTADO NO DETECTADO";
+      btnwrap.appendChild(mkCheckBtn());
+      const row=document.createElement('div'); row.className='btn-row';
+      row.appendChild(mkBtn('small','[ ON ]', ()=>sendCmd('on')));
+      row.appendChild(mkBtn('small off','[ OFF ]', ()=>sendCmd('off')));
+      btnwrap.appendChild(row);
     }
     renderPanel();
   }
 
   function setOp(result, text, ts){ lastOp={result, text, ts: ts||Math.floor(Date.now()/1000)}; }
+
+  // Comprobar estado: rastrea y revela la info. Arranca el sondeo periódico la 1ª vez.
+  async function doCheck(){
+    clearTerm();
+    line("> rastreando a la bestia...", 'dim');
+    checking=true; render();
+    await sleep(750);
+    const s=await checkState();
+    checking=false;
+    if(s.http===429){ foot.innerHTML='<span class="err">⚠ canal saturado (429) · reintenta en unos min</span>'; state='unknown'; }
+    else if(s.state==='error'){ foot.innerHTML='<span class="err">sin conexión a ntfy</span>'; state='unknown'; }
+    else { foot.textContent='··· canal cifrado · ntfy ···'; state=(s.state==='quota')?'unknown':s.state; stateSince=s.time||0; }
+    line("> estado: "+(state==='awake'?'DESPIERTA':state==='asleep'?'DORMIDA':'¿? (sin respuesta clara)'),
+         state==='awake'?'':'dim');
+    render();
+    if(!polling){ polling=true; setInterval(poll, POLL_MS); }
+  }
 
   async function sendCmd(which){
     pending=which; busy=true; render();
@@ -326,7 +372,7 @@
   }
 
   async function poll(){
-    if(busy) return;
+    if(busy || checking) return;
     const s=await checkState();
     if(s.http===429){ foot.innerHTML='<span class="err">⚠ canal saturado (429) · espera unos min</span>'; return; }
     if(s.state==='error'){ foot.innerHTML='<span class="err">sin conexion a ntfy</span>'; return; }
@@ -339,15 +385,10 @@
   }
 
   (async function(){
-    setBeast('asleep');           // arte inicial inmediato
+    setBeast('unknown');
     await bootSeq();
-    const s=await checkState();
-    if(s.http===429){ foot.innerHTML='<span class="err">⚠ canal saturado (429)</span>'; state='unknown'; }
-    else { state = (s.state==='error'||s.state==='quota') ? 'unknown' : s.state; stateSince=s.time||0; }
-    line("> estado: "+(state==='awake'?'DESPIERTA':state==='asleep'?'DORMIDA':'¿?'),
-         state==='awake'?'':'dim');
-    render();
-    setInterval(poll, POLL_MS);
+    state='idle';
+    render();   // muestra SOLO el botón "COMPROBAR ESTADO"; la info sale al pulsarlo
   })();
 </script>
 </body>
