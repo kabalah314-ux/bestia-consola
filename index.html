@@ -32,8 +32,31 @@
   }
   @keyframes flick{ 0%,97%{opacity:1} 98%{opacity:.85} 99%{opacity:1} }
   .crt{ width:100%; max-width:560px; padding:26px 22px 38px; position:relative; z-index:1; }
-  pre.beast{ font-size:13px; line-height:1.05; color:var(--grn); white-space:pre; text-align:center;
-    margin:0 auto 14px; filter:drop-shadow(0 0 8px rgba(51,255,102,.5)); transition:color .4s; }
+
+  /* ── DRAGÓN / CUEVA ───────────────────────────────────────── */
+  .beast-center{ text-align:center; margin:0 auto 14px; }
+  .beastwrap{ position:relative; display:inline-block; }
+  pre.beast{ font-size:13px; line-height:1.05; white-space:pre; text-align:left;
+    display:inline-block; color:var(--grn);
+    filter:drop-shadow(0 0 8px rgba(51,255,102,.5)); transition:color .4s; }
+  /* estados */
+  .beastwrap.asleep   pre.beast{ color:var(--grn-dim); filter:drop-shadow(0 0 6px rgba(255,176,0,.22)); animation:breathe 4s ease-in-out infinite; }
+  .beastwrap.waking   pre.beast{ color:var(--amber);   filter:drop-shadow(0 0 10px rgba(255,176,0,.6)); animation:shake .28s steps(2) infinite; }
+  .beastwrap.sleeping pre.beast{ color:var(--amber);   filter:drop-shadow(0 0 8px rgba(255,176,0,.45)); animation:breathe 1.5s ease-in-out infinite; }
+  .beastwrap.awake    pre.beast{ color:var(--grn);     filter:drop-shadow(0 0 11px rgba(51,255,102,.7)); animation:bob 3s ease-in-out infinite; }
+  .beastwrap.unknown  pre.beast{ color:var(--grn-dim); }
+  @keyframes breathe{ 0%,100%{transform:scale(1)} 50%{transform:scale(1.03)} }
+  @keyframes bob{ 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+  @keyframes shake{ 0%{transform:translate(-2px,0) rotate(-1deg)} 50%{transform:translate(2px,-1px) rotate(1deg)} 100%{transform:translate(-2px,0) rotate(-1deg)} }
+  /* zzz que suben de la cueva (solo dormido) */
+  .zzz{ position:absolute; top:-10px; left:60%; pointer-events:none; opacity:0; transition:opacity .4s; }
+  .beastwrap.asleep .zzz{ opacity:1; }
+  .zzz span{ position:absolute; font-size:18px; color:var(--amber); text-shadow:0 0 8px var(--amber); opacity:0; }
+  .zzz span:nth-child(1){ animation:floatz 3.2s ease-in infinite; }
+  .zzz span:nth-child(2){ font-size:22px; animation:floatz 3.2s ease-in infinite 1.05s; }
+  .zzz span:nth-child(3){ font-size:27px; animation:floatz 3.2s ease-in infinite 2.1s; }
+  @keyframes floatz{ 0%{opacity:0; transform:translate(0,8px) scale(.7)} 22%{opacity:1} 100%{opacity:0; transform:translate(16px,-36px) scale(1.15)} }
+
   .title{ font-size:30px; letter-spacing:3px; text-align:center; margin-bottom:2px; }
   .sub{ font-size:18px; color:var(--grn-dim); text-align:center; letter-spacing:1px; margin-bottom:18px; }
   .term{ font-size:20px; line-height:1.5; min-height:120px; }
@@ -57,27 +80,40 @@
   button.off{ border-color:var(--red); color:var(--red); text-shadow:0 0 10px var(--red);
     box-shadow:0 0 18px rgba(255,59,48,.4), inset 0 0 18px rgba(255,59,48,.12); }
   button.busy{ opacity:.5; pointer-events:none; }
-  .foot{ text-align:center; font-size:15px; color:var(--grn-dim); margin-top:22px; letter-spacing:1px; }
+  /* Panel de estado + resultado de la última operación */
+  .panel{ margin-top:20px; border-top:1px solid var(--grn-dim); padding-top:12px; font-size:18px; line-height:1.6; }
+  .panel .row{ display:flex; justify-content:space-between; gap:10px; white-space:nowrap; }
+  .panel .k{ color:var(--grn-dim); letter-spacing:1px; }
+  .panel .v{ text-align:right; overflow:hidden; text-overflow:ellipsis; }
+  .v.ok{ color:var(--grn); } .v.warn{ color:var(--amber); } .v.bad{ color:var(--red); }
+  .v.asleep{ color:var(--amber); } .v.awake{ color:var(--grn); } .v.unknown{ color:var(--grn-dim); }
+  .foot{ text-align:center; font-size:15px; color:var(--grn-dim); margin-top:18px; letter-spacing:1px; }
   .err{ color:var(--red); }
 </style>
 </head>
 <body>
   <div class="crt">
-    <pre class="beast" id="beast">      ▄▄▄▄▄▄▄
-   ▄█▀░░░░░░░▀█▄
-  █▌░▄▄░░░▄▄░░▐█
-  █▌░▀▀░░░▀▀░░▐█
-   █▄░░▄███▄░░▄█
-    ▀█▄░▀▀▀░▄█▀
-   ▝▀█▓█▀▀▀█▓█▀▘
-      ▀▀   ▀▀</pre>
+
+    <div class="beast-center">
+      <div class="beastwrap asleep" id="beastwrap">
+        <div class="zzz" id="zzz"><span>z</span><span>Z</span><span>z</span></div>
+        <pre class="beast" id="beast"></pre>
+      </div>
+    </div>
+
     <div class="title">L A · B E S T I A</div>
-    <div class="sub">// consola remota v1.0</div>
+    <div class="sub">// consola remota v1.2</div>
 
     <div class="term" id="term"></div>
 
     <div class="prompt-big" id="prompt"></div>
     <div class="btn-wrap" id="btnwrap"></div>
+
+    <!-- Panel: estado actual + resultado de la última operación -->
+    <div class="panel" id="panel">
+      <div class="row"><span class="k">ESTADO</span><span class="v unknown" id="st-state">¿?</span></div>
+      <div class="row"><span class="k">ÚLTIMA OP</span><span class="v" id="st-op">—</span></div>
+    </div>
 
     <div class="foot" id="foot">··· canal cifrado · ntfy ···</div>
   </div>
@@ -87,19 +123,68 @@
   const SLEEP = "sleepmac-q4w8r2t6y9k3";
   const HB    = "bestiavive-x7h3k9q2z4p";
   const NTFY  = "https://ntfy.sh/";
+  const POLL_MS = 20000;   // sondeo cada 20s (antes 8s) para no agotar la cuota de ntfy
+
+  // ── ARTE: cueva (dormido), cueva con ojos (despertando), dragón (despierto) ──
+  const ART = {
+    asleep:
+`        ▄▄▄▄▄▄▄▄▄▄▄
+      ▟█████████████▙
+    ▟█████████████████▙
+   ███████████████████████
+  ████▛▀▀▀▀▀▀▀▀▀▀▀▀▀▛████
+  ███▛                ▜███
+  ██▛                  ▜██
+ ▀▀▀                    ▀▀▀`,
+    waking:
+`        ▄▄▄▄▄▄▄▄▄▄▄
+      ▟█████████████▙
+    ▟█████████████████▙
+   ███████████████████████
+  ████▛▀▀▀▀▀▀▀▀▀▀▀▀▀▛████
+  ███▛      ◉    ◉    ▜███
+  ██▛                  ▜██
+ ▀▀▀                    ▀▀▀`,
+    awake:
+`   ◤▔◥               ◤▔◥
+    ▜██▄▄▄▄▄▄▄▄▄▄▄██▛
+     ▜████▀▀▀▀▀████▛
+    ▟████  ◉   ◉  ████▙
+   █████▏    ▼     ▕█████
+    ▜████▄  ▀▀▀   ▄████▛
+      ▀▀████████████▀▀
+         ▄█▀     ▀█▄`
+  };
+  ART.sleeping = ART.asleep;
+  ART.unknown  = ART.asleep;
 
   const term=document.getElementById('term');
   const prompt=document.getElementById('prompt');
   const btnwrap=document.getElementById('btnwrap');
   const beast=document.getElementById('beast');
+  const beastwrap=document.getElementById('beastwrap');
   const foot=document.getElementById('foot');
+  const stState=document.getElementById('st-state');
+  const stOp=document.getElementById('st-op');
 
   let state="unknown";   // awake | asleep | unknown
+  let stateSince=0;      // epoch (s) del último cambio de estado conocido
   let busy=false;        // mientras esperamos una transición
   let pending=null;      // 'on' | 'off' durante la accion
+  let lastOp=null;       // {result:'ok'|'warn'|'bad', text, ts}
+
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  const hhmm=ts=>{ if(!ts) return ""; const d=new Date(ts*1000);
+    return String(d.getHours()).padStart(2,'0')+":"+String(d.getMinutes()).padStart(2,'0'); };
 
   function line(txt, cls){ const d=document.createElement('div'); d.className='line '+(cls||''); d.textContent=txt; term.appendChild(d); }
   function clearTerm(){ term.innerHTML=''; }
+
+  // Cambia el arte + la clase de animación del contenedor.
+  function setBeast(key){
+    beast.textContent = ART[key] || ART.unknown;
+    beastwrap.className = 'beastwrap ' + key;
+  }
 
   async function bootSeq(){
     const lines=[
@@ -109,23 +194,38 @@
     ];
     for(const l of lines){ line(l,'dim'); await sleep(420); }
   }
-  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
+  // Devuelve {state, time, http}. http=429 => canal saturado; http=0 => sin red.
   async function checkState(){
     try{
       const r=await fetch(NTFY+HB+"/json?poll=1",{cache:"no-store"});
+      if(r.status===429) return {state:"quota", time:0, http:429};
+      if(!r.ok)          return {state:"error", time:0, http:r.status};
       const lines=(await r.text()).trim().split("\n").filter(Boolean);
       for(let i=lines.length-1;i>=0;i--){
         try{ const d=JSON.parse(lines[i]);
           if(d.event==="message"){
             const age=Math.floor(Date.now()/1000)-(d.time||0);
-            if(age>180) return "unknown";
-            return d.message==="asleep" ? "asleep" : "awake";
+            const st = age>180 ? "unknown" : (d.message==="asleep" ? "asleep" : "awake");
+            return {state:st, time:d.time||0, http:200};
           }
         }catch(e){}
       }
-      return "unknown";
-    }catch(e){ return "error"; }
+      return {state:"unknown", time:0, http:200};
+    }catch(e){ return {state:"error", time:0, http:0}; }
+  }
+
+  // Panel inferior: ESTADO (desde HH:MM) + resultado de la última operación.
+  function renderPanel(){
+    const label = state==='awake' ? 'DESPIERTA' : state==='asleep' ? 'DORMIDA' : '¿?';
+    stState.className = 'v ' + (state==='awake'?'awake':state==='asleep'?'asleep':'unknown');
+    stState.textContent = label + (stateSince ? '  · desde '+hhmm(stateSince) : '');
+    if(lastOp){
+      stOp.className = 'v ' + (lastOp.result==='ok'?'ok':lastOp.result==='warn'?'warn':'bad');
+      stOp.textContent = lastOp.text + (lastOp.ts ? '  · '+hhmm(lastOp.ts) : '');
+    }else{
+      stOp.className='v'; stOp.textContent='—';
+    }
   }
 
   function render(){
@@ -133,25 +233,26 @@
     if(busy){
       prompt.classList.add('blink');
       prompt.textContent = pending==='off' ? "DURMIENDO A LA BESTIA..." : "DESPERTANDO A LA BESTIA...";
-      beast.style.color = "var(--amber)";
+      setBeast(pending==='off' ? 'sleeping' : 'waking');
+      renderPanel();
       return;
     }
     if(state==="awake"){
-      beast.style.color="var(--grn)";
-      prompt.textContent="¿QUIERES APAGAR A LA BESTIA?";
+      setBeast('awake');
+      prompt.textContent="¿QUIERES DORMIR A LA BESTIA?";
       const b=document.createElement('button');
       b.className='beastbtn off'; b.textContent='[ OFF ]';
       b.onclick=()=>sendCmd('off');
       btnwrap.appendChild(b);
     }else if(state==="asleep"){
-      beast.style.color="var(--grn-dim)";
+      setBeast('asleep');
       prompt.textContent="DESPERTAR A LA BESTIA";
       const b=document.createElement('button');
       b.className='beastbtn'; b.textContent='[ ON ]';
       b.onclick=()=>sendCmd('on');
       btnwrap.appendChild(b);
     }else{
-      beast.style.color="var(--grn-dim)";
+      setBeast('unknown');
       prompt.textContent="ESTADO DESCONOCIDO";
       const b1=document.createElement('button');
       b1.className='beastbtn'; b1.style.fontSize='30px'; b1.style.padding='12px 26px'; b1.textContent='[ ON ]';
@@ -161,7 +262,10 @@
       b2.onclick=()=>sendCmd('off');
       btnwrap.appendChild(b1); btnwrap.appendChild(b2);
     }
+    renderPanel();
   }
+
+  function setOp(result, text, ts){ lastOp={result, text, ts: ts||Math.floor(Date.now()/1000)}; }
 
   async function sendCmd(which){
     pending=which; busy=true; render();
@@ -170,50 +274,80 @@
     line("");
     line(which==='on' ? "> DESPERTANDO A LA BESTIA" : "> DURMIENDO A LA BESTIA", '');
     line("> enviando senal por el canal...", 'dim');
+
+    // --- PASO 1: enviar la orden y LEER el resultado HTTP (aquí cazamos el 429) ---
     try{
       const r=await fetch(NTFY+topic,{method:'POST',body:body});
+      if(r.status===429){
+        line("> [ERROR] CANAL SATURADO (429).", 'err');
+        line("> demasiadas senales seguidas; ntfy te limita. Espera unos minutos.", 'dim');
+        setOp('bad', (which==='on'?'DESPERTAR':'DORMIR')+': ✗ canal saturado (429)');
+        busy=false; pending=null; render(); return;
+      }
       if(!r.ok) throw new Error('HTTP '+r.status);
       line("> [OK] senal transmitida correctamente.", '');
     }catch(e){
       line("> [ERROR] no se pudo enviar: "+e.message, 'err');
+      setOp('bad', (which==='on'?'DESPERTAR':'DORMIR')+': ✗ '+e.message);
       busy=false; pending=null; render(); return;
     }
+
+    // --- PASO 2: confirmar el RESULTADO leyendo el estado real ---
     line(which==='on' ? "> esperando a que la bestia despierte..." : "> esperando a que la bestia se duerma...", 'dim');
     const target = which==='on' ? "awake" : "asleep";
+    let sawQuota=false;
     for(let i=0;i<20;i++){
       await sleep(2000);
       const s=await checkState();
-      if(s===target){
-        busy=false; pending=null; state=s;
+      if(s.http===429){ sawQuota=true; continue; }
+      if(s.state===target){
+        busy=false; pending=null; state=s.state; stateSince=s.time||Math.floor(Date.now()/1000);
         line(which==='on' ? "> [✓] LA BESTIA HA DESPERTADO." : "> [✓] LA BESTIA DUERME.", '');
+        setOp('ok', (which==='on'?'DESPERTADA':'DORMIDA')+' ✓', stateSince);
         render(); return;
       }
     }
+
+    // --- PASO 3: enviada pero SIN confirmar -> diagnóstico claro ---
     busy=false; pending=null; state="unknown";
-    line(which==='on'
-      ? "> senal enviada. la bestia deberia despertar en ~15s."
-      : "> senal enviada. la bestia deberia dormirse en unos segundos.", '');
-    line("> (confirmacion automatica no disponible ahora)", 'dim');
+    if(sawQuota){
+      line("> [!] orden enviada, pero ntfy esta saturado (429) y no puedo confirmar.", 'err');
+      setOp('warn', (which==='on'?'DESPERTAR':'DORMIR')+': ⏳ sin confirmar (cuota 429)');
+    }else if(which==='on'){
+      line("> [!] senal enviada, pero la bestia no confirma despertar.", '');
+      line("> posible: Pixel dormido/sin WiFi, o el WoL no penetra el reposo.", 'dim');
+      setOp('warn', 'DESPERTAR: ⏳ enviada, sin confirmar (¿Pixel?)');
+    }else{
+      line("> [!] senal enviada, pero la bestia no confirma dormir.", '');
+      line("> posible: daemon caido o cuota de ntfy.", 'dim');
+      setOp('warn', 'DORMIR: ⏳ enviada, sin confirmar (¿daemon?)');
+    }
     render();
   }
 
   async function poll(){
     if(busy) return;
     const s=await checkState();
-    if(s==='error'){ foot.innerHTML='<span class="err">sin conexion a ntfy</span>'; return; }
+    if(s.http===429){ foot.innerHTML='<span class="err">⚠ canal saturado (429) · espera unos min</span>'; return; }
+    if(s.state==='error'){ foot.innerHTML='<span class="err">sin conexion a ntfy</span>'; return; }
     foot.textContent='··· canal cifrado · ntfy ···';
-    if(s!==state){ state=s; }
+    if(s.state==='awake'||s.state==='asleep'){
+      if(s.state!==state){ state=s.state; stateSince=s.time||Math.floor(Date.now()/1000); }
+      else if(s.time && !stateSince){ stateSince=s.time; }
+    }else if(s.state!==state){ state=s.state; }
     render();
   }
 
   (async function(){
+    setBeast('asleep');           // arte inicial inmediato
     await bootSeq();
     const s=await checkState();
-    state = (s==='error') ? 'unknown' : s;
+    if(s.http===429){ foot.innerHTML='<span class="err">⚠ canal saturado (429)</span>'; state='unknown'; }
+    else { state = (s.state==='error'||s.state==='quota') ? 'unknown' : s.state; stateSince=s.time||0; }
     line("> estado: "+(state==='awake'?'DESPIERTA':state==='asleep'?'DORMIDA':'¿?'),
          state==='awake'?'':'dim');
     render();
-    setInterval(poll, 8000);
+    setInterval(poll, POLL_MS);
   })();
 </script>
 </body>
