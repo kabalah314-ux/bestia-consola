@@ -116,7 +116,11 @@
       const lines=(await r.text()).trim().split("\n").filter(Boolean);
       for(let i=lines.length-1;i>=0;i--){
         try{ const d=JSON.parse(lines[i]);
-          if(d.event==="message"){ return d.message==="asleep" ? "asleep" : "awake"; }
+          if(d.event==="message"){
+            const age=Math.floor(Date.now()/1000)-(d.time||0);
+            if(age>180) return "unknown";
+            return d.message==="asleep" ? "asleep" : "awake";
+          }
         }catch(e){}
       }
       return "unknown";
