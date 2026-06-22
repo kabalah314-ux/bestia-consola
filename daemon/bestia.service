@@ -1,0 +1,15 @@
+[Unit]
+Description=Daemon LA BESTIA (ntfy despertar/dormir + latido)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/bestia-daemon.sh
+Restart=always
+RestartSec=5
+# Necesita root para 'systemctl suspend'.
+User=root
+
+[Install]
+WantedBy=multi-user.target
